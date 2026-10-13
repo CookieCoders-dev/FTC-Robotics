@@ -1,0 +1,40 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/names_help" />
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:labelFor="@+id/ds_name"
+        android:text="@string/ds_name" />
+    <EditText
+        android:id="@+id/ds_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp"
+        android:inputType="textNoSuggestions"
+        android:singleLine="true"
+        android:importantForAutofill="no"
+        android:imeOptions="actionNext" />
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:labelFor="@+id/rc_name"
+        android:text="@string/rc_name" />
+    <EditText
+        android:id="@+id/rc_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp"
+        android:inputType="textNoSuggestions"
+        android:singleLine="true"
+        android:importantForAutofill="no"
+        android:imeOptions="actionDone" />
+</LinearLayout>

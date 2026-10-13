@@ -1,0 +1,44 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'dev.cookiecoders.ftcreconnect'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'dev.cookiecoders.ftcreconnect'
+        minSdk 30
+        targetSdk 36
+        versionCode 2
+        versionName '1.1'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    signingConfigs {
+        release {
+            def keyStore = System.getenv('FTC_RECONNECT_KEYSTORE')
+            if (keyStore != null) {
+                storeFile file(keyStore)
+                storePassword System.getenv('FTC_RECONNECT_SIGN_PASSWORD')
+                keyPassword System.getenv('FTC_RECONNECT_SIGN_PASSWORD')
+                keyAlias 'ftcreconnect'
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+        }
+    }
+
+    lint {
+        abortOnError true
+        checkReleaseBuilds true
+    }
+}
