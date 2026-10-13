@@ -52,8 +52,6 @@ import java.util.concurrent.Executors;
 @SuppressLint("MissingPermission")
 public final class MainActivity extends Activity {
     private static final String TAG = "FtcReconnect";
-    private static final String DEFAULT_DS_NAME = "39092-DS";
-    private static final String DEFAULT_RC_NAME = "39092-RC";
     private static final String DS_PACKAGE = "com.qualcomm.ftcdriverstation";
     private static final String RC_ADDRESS = "192.168.49.1";
     private static final int PERMISSION_REQUEST = 39;
@@ -136,8 +134,8 @@ public final class MainActivity extends Activity {
         deviceSummary = findViewById(R.id.device_summary);
         diagnosticReport = findViewById(R.id.diagnostic_report);
         preferences = getSharedPreferences("device_names", MODE_PRIVATE);
-        dsName = preferences.getString("ds_name", DEFAULT_DS_NAME);
-        rcName = preferences.getString("rc_name", DEFAULT_RC_NAME);
+        dsName = preferences.getString("ds_name", "");
+        rcName = preferences.getString("rc_name", "");
         updateDeviceSummary();
         progress = findViewById(R.id.progress);
         permissions = findViewById(R.id.app_settings);
@@ -155,6 +153,7 @@ public final class MainActivity extends Activity {
                 launchSettings(new Intent(Settings.Panel.ACTION_WIFI)));
         permissions.setOnClickListener(view -> launchSettings(new Intent(
                 Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))));
+        setPhase(Phase.IDLE, getString(namesConfigured() ? R.string.ready : R.string.setup_required));
 
         manager = getSystemService(WifiP2pManager.class);
         if (manager == null) {
@@ -180,7 +179,7 @@ public final class MainActivity extends Activity {
             registerReceiver(receiver, filter);
         }
         registered = true;
-        if (state != null) {
+        if (state != null && namesConfigured()) {
             status.setText(R.string.helper_reopened);
         }
     }
@@ -191,7 +190,9 @@ public final class MainActivity extends Activity {
     }
 
     private void updateDeviceSummary() {
-        deviceSummary.setText(getString(R.string.subtitle, dsName, rcName));
+        String unset = getString(R.string.name_not_set);
+        deviceSummary.setText(getString(R.string.subtitle,
+                dsName.isEmpty() ? unset : dsName, rcName.isEmpty() ? unset : rcName));
     }
 
     private void editDeviceNames() {
@@ -243,8 +244,17 @@ public final class MainActivity extends Activity {
                 && name.codePoints().noneMatch(Character::isISOControl);
     }
 
+    private boolean namesConfigured() {
+        return validDeviceName(dsName) && validDeviceName(rcName) && !dsName.equals(rcName);
+    }
+
     private void beginWithPermission(Operation operation) {
         if (busy()) {
+            return;
+        }
+        if (!namesConfigured()) {
+            setPhase(Phase.IDLE, getString(R.string.setup_required));
+            editDeviceNames();
             return;
         }
         diagnosticReport.setVisibility(View.GONE);
@@ -770,9 +780,9 @@ public final class MainActivity extends Activity {
         status.setText(message);
         Log.i(TAG, next.name() + ": " + message);
         progress.setVisibility(busy() ? View.VISIBLE : View.GONE);
-        fix.setEnabled(!busy());
+        fix.setEnabled(!busy() && namesConfigured());
         open.setEnabled(!busy());
-        diagnose.setEnabled(!busy());
+        diagnose.setEnabled(!busy() && namesConfigured());
         deviceNames.setEnabled(!busy());
         findViewById(R.id.wifi_controls).setEnabled(!busy());
         permissions.setEnabled(!busy());

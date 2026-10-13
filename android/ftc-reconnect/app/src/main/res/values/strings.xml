@@ -1,8 +1,10 @@
 <resources>
     <string name="app_name">FTC Reconnect</string>
-    <string name="team_label">COOKIE CODERS / FTC CONNECTION HELPER</string>
+    <string name="helper_label">FTC CONNECTION HELPER</string>
     <string name="heading">Fix the FTC connection</string>
     <string name="subtitle">This phone: %1$s\nRobot Controller: %2$s</string>
+    <string name="name_not_set">not set</string>
+    <string name="setup_required">Tap Device Names and save your DS and RC names before checking or fixing the connection.</string>
     <string name="device_names">DEVICE NAMES</string>
     <string name="ds_name">Driver Station Wi-Fi Direct name</string>
     <string name="rc_name">Robot Controller Wi-Fi Direct name</string>

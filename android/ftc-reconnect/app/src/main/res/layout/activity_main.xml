@@ -11,7 +11,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/team_label"
+            android:text="@string/helper_label"
             android:textColor="#85410E"
             android:textSize="14sp"
             android:textStyle="bold" />

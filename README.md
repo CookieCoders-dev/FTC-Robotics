@@ -10,8 +10,10 @@ connections. It is an unofficial utility, not an FTC Driver Station or Robot
 Controller replacement. REV Control Hub hotspots are not supported.
 
 - **Device Names** saves the exact, case-sensitive Driver Station and Robot
-  Controller Wi-Fi Direct names. The initial defaults are `39092-DS` and
-  `39092-RC`; saving names does not rename either phone.
+  Controller Wi-Fi Direct names. New installs have no default team or device
+  names; users must save both names before checking or fixing the connection.
+  Updates preserve previously saved names. Saving names does not rename either
+  phone.
 - **Fix Connection** checks the saved identities, clears the old FTC link,
   discovers and pairs with the saved controller, checks its local web service,
   and opens Driver Station.
