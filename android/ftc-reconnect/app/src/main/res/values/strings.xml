@@ -1,8 +1,8 @@
 <resources>
     <string name="app_name">FTC Reconnect</string>
-    <string name="helper_label">FTC CONNECTION HELPER</string>
+    <string name="helper_label">FTC CONNECTION HELPER v%1$s</string>
     <string name="heading">Fix the FTC connection</string>
-    <string name="subtitle">This phone: %1$s\nRobot Controller: %2$s</string>
+    <string name="subtitle">Driver Station: %1$s\nRobot Controller: %2$s</string>
     <string name="name_not_set">not set</string>
     <string name="setup_required">Tap Device Names and save your DS and RC names before checking or fixing the connection.</string>
     <string name="device_names">DEVICE NAMES</string>
@@ -46,11 +46,33 @@
     <string name="ready">Park and stop the robot, then tap Fix Connection.</string>
     <string name="safety">Fix Connection resets the FTC Wi-Fi Direct link. This helper never presses INIT or START, changes robot code, or drives the robot.</string>
     <string name="confirm_title">Is the robot parked and stopped?</string>
-    <string name="confirm_body">The Driver Station will briefly disconnect from %1$s. Use this only while the robot is safely stationary, not during a match.</string>
+    <string name="confirm_recovery">This can disconnect the Driver Station. Use only while the robot is parked and stopped, never during a match. Run the RC step first, then the DS step.</string>
     <string name="confirm_fix">YES, FIX CONNECTION</string>
     <string name="helper_reopened">Helper reopened. No reset started automatically. Park the robot before retrying.</string>
-    <string name="nearby_note">Allow Nearby devices when asked. Keep both phones unlocked with the Robot Controller app open. Android may ask you to accept pairing on the robot phone.</string>
+    <string name="nearby_note">Allow Nearby devices when asked. Keep both phones unlocked. Android may ask you to accept pairing on the robot phone.</string>
     <string name="permission_denied">Wi-Fi Direct permission is required (Nearby devices on Android 13+, Location on older phones). Tap What\'s Wrong or Fix Connection to allow it, or enable it in App Permissions. This does not indicate an RC fault.</string>
     <string name="app_settings">APP PERMISSIONS</string>
     <string name="waiting_permission">Allow nearby-device access to find the FTC controller.</string>
+    <string name="open_rc">OPEN ROBOT CONTROLLER</string>
+    <string name="recovery_order">1. Robot Controller: Fix Connection, then open the official Robot Controller app.\n2. Driver Station: Fix Connection once the RC app is open. Do not run both fixes at once.</string>
+    <string name="recovery_rc">Step 1 of 2: On this phone, tap Fix Connection. Leave the DS in FTC Reconnect until this step finishes.</string>
+    <string name="recovery_ds">Step 2 of 2: Leave the official Robot Controller app open on the RC. Then tap Fix Connection here. If asked, accept pairing on the RC, then check Connected in Driver Station.</string>
+    <string name="checking_phone">Checking this phone\'s Wi-Fi Direct name and FTC app...</string>
+    <string name="fix_name_mismatch">This phone\'s Wi-Fi Direct name matches neither %1$s nor %2$s. Check Device Names and the official FTC settings. No link was reset.</string>
+    <string name="full_reset_pending">Waiting for your confirmation. Nothing has been disconnected yet.</string>
+    <string name="full_reset_title">Proceed with a full Wi-Fi Direct reset?</string>
+    <string name="full_reset_body">This phone has a Wi-Fi Direct group the helper could not verify as FTC-only. A full reset disconnects every device in that group. It does not erase saved Wi-Fi networks. Continue only while the robot is parked and stopped.</string>
+    <string name="full_reset_proceed">PROCEED WITH FULL RESET</string>
+    <string name="full_reset_cancelled">Reset canceled. No link was disconnected.</string>
+    <string name="full_reset_group_changed">The Wi-Fi Direct group changed while you were confirming. No link was disconnected. Tap Fix Connection to check again.</string>
+    <string name="clearing_group">Disconnecting the active Wi-Fi Direct group...</string>
+    <string name="rc_handoff">RC reset step done: no old Wi-Fi Direct group was found or the old group was cleared.\n\nTap Open Robot Controller below. Leave that app open, then switch to the DS and tap Fix Connection there. Accept pairing on the RC if asked.</string>
+    <string name="rc_timeout">If the RC step gets stuck, keep the DS idle. With a mentor, close the official RC app, turn Wi-Fi off and back on on the RC only, then reopen Robot Controller. Once it is open, retry Fix Connection on the DS. Do not toggle both phones together.</string>
+    <string name="ds_timeout">Connection timed out. On the RC, make sure Robot Controller is open and accept pairing if asked. If the RC is not visible, stop retrying on the DS: return to the RC first, keep the DS idle, and reopen Robot Controller. If needed, reset RC Wi-Fi with a mentor before retrying on the DS.</string>
+    <string name="diagnostic_no_rc">ROBOT CONTROLLER UNAVAILABLE\nThe official FTC Robot Controller app is not installed or its launcher is disabled on this phone. Ask a mentor.</string>
+    <string name="rc_diagnostic_local">RC reported name: %1$s\nDS target: %2$s</string>
+    <string name="rc_diagnostic_owner">THIS PHONE OWNS A WI-FI DIRECT GROUP\nAndroid reports this phone as owner at 192.168.49.1. This does not verify the DS connection or the FTC handshake. Open Robot Controller and check the connection on the DS.</string>
+    <string name="rc_diagnostic_not_owner">RC GROUP NOT READY\nAndroid does not report this phone as the Wi-Fi Direct owner at 192.168.49.1. Open Robot Controller and wait for it to initialize. If it is stuck, keep the DS idle and reset RC Wi-Fi with a mentor before retrying on the DS.</string>
+    <string name="launch_role_unknown">The local FTC app is ambiguous or missing. Check the saved names, then tap What\'s Wrong to identify this phone, or open the official app from the home screen.</string>
+    <string name="launch_ftc_failed">Android could not open the official FTC app. Open it from the home screen.</string>
 </resources>

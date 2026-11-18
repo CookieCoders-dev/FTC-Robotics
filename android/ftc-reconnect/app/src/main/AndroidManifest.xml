@@ -12,6 +12,7 @@
         android:maxSdkVersion="32" />
     <queries>
         <package android:name="com.qualcomm.ftcdriverstation" />
+        <package android:name="com.qualcomm.ftcrobotcontroller" />
     </queries>
     <application
         android:allowBackup="false"

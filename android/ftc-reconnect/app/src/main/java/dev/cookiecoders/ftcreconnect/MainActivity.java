@@ -45,6 +45,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -53,12 +54,24 @@ import java.util.concurrent.Executors;
 public final class MainActivity extends Activity {
     private static final String TAG = "FtcReconnect";
     private static final String DS_PACKAGE = "com.qualcomm.ftcdriverstation";
+    private static final String RC_PACKAGE = "com.qualcomm.ftcrobotcontroller";
     private static final String RC_ADDRESS = "192.168.49.1";
     private static final int PERMISSION_REQUEST = 39;
     private static final long TIMEOUT_MS = 60_000;
 
     private enum Phase { IDLE, CHECKING, DIAGNOSING, REMOVING, DISCOVERING, CONNECTING, VERIFYING, READY, ERROR }
     private enum Operation { RECONNECT, DIAGNOSE }
+    private enum PhoneRole {
+        DS(DS_PACKAGE, R.string.open_ds), RC(RC_PACKAGE, R.string.open_rc);
+
+        final String packageName;
+        final int openLabel;
+
+        PhoneRole(String packageName, int openLabel) {
+            this.packageName = packageName;
+            this.openLabel = openLabel;
+        }
+    }
     private enum ProbeStatus { OK, WRONG_IDENTITY, NOT_ALIVE, HTTP_ERROR, NETWORK_ERROR, INVALID_RESPONSE }
 
     private static final class ProbeResult {
@@ -85,6 +98,7 @@ public final class MainActivity extends Activity {
     private SharedPreferences preferences;
     private String dsName;
     private String rcName;
+    private PhoneRole role;
     private View permissions;
     private ProgressBar progress;
     private Phase phase = Phase.IDLE;
@@ -92,6 +106,7 @@ public final class MainActivity extends Activity {
     private Operation pendingPermission;
     private String peerAddress;
     private boolean registered;
+    private AlertDialog resetConfirmation;
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @Override
@@ -119,6 +134,8 @@ public final class MainActivity extends Activity {
         super.onCreate(state);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_main);
+        TextView helperLabel = findViewById(R.id.helper_label);
+        helperLabel.setText(getString(R.string.helper_label, BuildConfig.VERSION_NAME));
         View root = findViewById(R.id.root);
         root.setOnApplyWindowInsetsListener((view, insets) -> {
             android.graphics.Insets bars = insets.getInsets(
@@ -136,19 +153,24 @@ public final class MainActivity extends Activity {
         preferences = getSharedPreferences("device_names", MODE_PRIVATE);
         dsName = preferences.getString("ds_name", "");
         rcName = preferences.getString("rc_name", "");
+        boolean hasRc = launcher(PhoneRole.RC) != null;
+        boolean hasDs = launcher(PhoneRole.DS) != null;
+        if (hasRc != hasDs) {
+            setRole(hasRc ? PhoneRole.RC : PhoneRole.DS);
+        }
         updateDeviceSummary();
         progress = findViewById(R.id.progress);
         permissions = findViewById(R.id.app_settings);
         fix.setOnClickListener(view -> new AlertDialog.Builder(this)
                 .setTitle(R.string.confirm_title)
-                .setMessage(getString(R.string.confirm_body, rcName))
+                .setMessage(R.string.confirm_recovery)
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(R.string.confirm_fix,
                         (dialog, which) -> beginWithPermission(Operation.RECONNECT))
                 .show());
         diagnose.setOnClickListener(view -> beginWithPermission(Operation.DIAGNOSE));
         deviceNames.setOnClickListener(view -> editDeviceNames());
-        open.setOnClickListener(view -> openDriverStation());
+        open.setOnClickListener(view -> openFtcApp(role));
         findViewById(R.id.wifi_controls).setOnClickListener(view ->
                 launchSettings(new Intent(Settings.Panel.ACTION_WIFI)));
         permissions.setOnClickListener(view -> launchSettings(new Intent(
@@ -193,6 +215,27 @@ public final class MainActivity extends Activity {
         String unset = getString(R.string.name_not_set);
         deviceSummary.setText(getString(R.string.subtitle,
                 dsName.isEmpty() ? unset : dsName, rcName.isEmpty() ? unset : rcName));
+    }
+
+    private Intent launcher(PhoneRole target) {
+        return getPackageManager().getLaunchIntentForPackage(target.packageName);
+    }
+
+    private void setRole(PhoneRole detected) {
+        role = detected;
+        open.setText(detected.openLabel);
+        ((TextView) findViewById(R.id.recovery_steps)).setText(
+                detected == PhoneRole.RC ? R.string.recovery_rc : R.string.recovery_ds);
+    }
+
+    private PhoneRole identifyPhone(WifiP2pDevice device) {
+        if (device == null) {
+            return null;
+        }
+        if (rcName.equals(device.deviceName)) {
+            return PhoneRole.RC;
+        }
+        return dsName.equals(device.deviceName) ? PhoneRole.DS : null;
     }
 
     private void editDeviceNames() {
@@ -307,10 +350,6 @@ public final class MainActivity extends Activity {
             fail("Wi-Fi Direct is unavailable. Close and reopen this helper.");
             return;
         }
-        if (getPackageManager().getLaunchIntentForPackage(DS_PACKAGE) == null) {
-            fail("FTC Driver Station is not installed or its launcher is disabled. Ask a mentor.");
-            return;
-        }
         WifiManager wifi = getApplicationContext().getSystemService(WifiManager.class);
         if (wifi == null || !wifi.isWifiEnabled()) {
             fail("Turn Wi-Fi on using Wi-Fi Controls, then tap Fix Connection again.");
@@ -324,51 +363,110 @@ public final class MainActivity extends Activity {
         }
         final int id = ++attempt;
         peerAddress = null;
-        setPhase(Phase.CHECKING, "1 / 4  Checking this Driver Station...");
+        setPhase(Phase.CHECKING, getString(R.string.checking_phone));
         handler.postDelayed(() -> {
             if (current(id) && busy()) {
-                fail("Connection timed out. Keep both phones unlocked, open the Robot Controller app, and retry.");
+                fail(getString(role == PhoneRole.RC ? R.string.rc_timeout : R.string.ds_timeout));
             }
         }, TIMEOUT_MS);
         runP2p(() -> manager.requestDeviceInfo(channel, device -> {
             if (!current(id)) {
                 return;
             }
-            if (device == null || !dsName.equals(device.deviceName)) {
-                fail("This phone's Wi-Fi Direct name does not match " + dsName
-                        + ". Check Device Names and the phone's FTC settings with a mentor.");
+            PhoneRole detected = identifyPhone(device);
+            if (detected == null) {
+                fail(getString(R.string.fix_name_mismatch, dsName, rcName));
                 return;
             }
-            inspectExistingGroup(id);
+            if (launcher(detected) == null) {
+                fail(getString(detected == PhoneRole.RC
+                        ? R.string.diagnostic_no_rc : R.string.diagnostic_no_ds));
+                return;
+            }
+            setRole(detected);
+            inspectExistingGroup(id, detected, 0);
         }));
     }
 
-    private void inspectExistingGroup(int id) {
+    private void inspectExistingGroup(int id, PhoneRole target, int retry) {
         runP2p(() -> manager.requestGroupInfo(channel, group -> {
             if (!current(id)) {
                 return;
             }
             if (group == null) {
-                discover(id, 0);
+                afterRemoval(id, target);
                 return;
             }
             WifiP2pDevice owner = group.getOwner();
-            if (owner == null || (!rcName.equals(owner.deviceName)
-                    && !dsName.equals(owner.deviceName))) {
-                fail("A different Wi-Fi Direct group is connected. Ask a mentor; it was not disconnected.");
+            boolean knownOwner = owner != null
+                    && (rcName.equals(owner.deviceName) || dsName.equals(owner.deviceName));
+            boolean unrecognizedClient = target == PhoneRole.RC && group.isGroupOwner()
+                    && group.getClientList().stream().anyMatch(client -> !dsName.equals(client.deviceName));
+            if (!knownOwner || unrecognizedClient) {
+                confirmFullReset(id, target, group, retry);
                 return;
             }
-            setPhase(Phase.REMOVING, "2 / 4  Clearing the old FTC link...");
-            removeGroup(id, 0);
+            clearGroup(id, target, retry);
         }));
     }
 
-    private void removeGroup(int id, int retry) {
+    private void confirmFullReset(int id, PhoneRole target, WifiP2pGroup observed, int retry) {
+        setPhase(Phase.CHECKING, getString(R.string.full_reset_pending));
+        resetConfirmation = new AlertDialog.Builder(this)
+                .setTitle(R.string.full_reset_title)
+                .setMessage(R.string.full_reset_body)
+                .setNegativeButton(android.R.string.cancel, (dialog, which) -> cancelFullReset(id))
+                .setOnCancelListener(dialog -> cancelFullReset(id))
+                .setPositiveButton(R.string.full_reset_proceed, (dialog, which) -> {
+                    if (!current(id)) {
+                        return;
+                    }
+                    runP2p(() -> manager.requestGroupInfo(channel, group -> {
+                        if (!current(id)) {
+                            return;
+                        }
+                        if (group == null) {
+                            afterRemoval(id, target);
+                        } else if (sameGroup(observed, group)) {
+                            clearGroup(id, target, retry);
+                        } else {
+                            fail(getString(R.string.full_reset_group_changed));
+                        }
+                    }));
+                })
+                .create();
+        resetConfirmation.setOnDismissListener(dialog -> resetConfirmation = null);
+        resetConfirmation.show();
+    }
+
+    private static boolean sameGroup(WifiP2pGroup first, WifiP2pGroup second) {
+        return first.isGroupOwner() == second.isGroupOwner()
+                && first.getNetworkName() != null
+                && first.getNetworkName().equals(second.getNetworkName())
+                && Objects.equals(first.getInterface(), second.getInterface())
+                && Objects.equals(first.getOwner() == null ? null : first.getOwner().deviceAddress,
+                        second.getOwner() == null ? null : second.getOwner().deviceAddress);
+    }
+
+    private void cancelFullReset(int id) {
+        if (current(id)) {
+            ++attempt;
+            handler.removeCallbacksAndMessages(null);
+            setPhase(Phase.IDLE, getString(R.string.full_reset_cancelled));
+        }
+    }
+
+    private void clearGroup(int id, PhoneRole target, int retry) {
+        setPhase(Phase.REMOVING, getString(R.string.clearing_group));
+        removeGroup(id, target, retry);
+    }
+
+    private void removeGroup(int id, PhoneRole target, int retry) {
         runP2p(() -> manager.removeGroup(channel, new WifiP2pManager.ActionListener() {
             @Override
             public void onSuccess() {
                 if (current(id)) {
-                    waitForRemoval(id);
+                    waitForRemoval(id, target);
                 }
             }
 
@@ -380,17 +478,18 @@ public final class MainActivity extends Activity {
                 if (reason == WifiP2pManager.BUSY && retry < 3) {
                     handler.postDelayed(() -> {
                         if (current(id)) {
-                            removeGroup(id, retry + 1);
+                            inspectExistingGroup(id, target, retry + 1);
                         }
                     }, 700);
                 } else {
-                    fail("Could not clear the FTC link: " + reasonText(reason));
+                    fail("Could not clear the FTC link: " + reasonText(reason)
+                            + (target == PhoneRole.RC ? "\n" + getString(R.string.rc_timeout) : ""));
                 }
             }
         }));
     }
 
-    private void waitForRemoval(int id) {
+    private void waitForRemoval(int id, PhoneRole target) {
         runP2p(() -> manager.requestGroupInfo(channel, group -> {
             if (!current(id)) {
                 return;
@@ -398,17 +497,26 @@ public final class MainActivity extends Activity {
             if (group == null) {
                 handler.postDelayed(() -> {
                     if (current(id)) {
-                        discover(id, 0);
+                        afterRemoval(id, target);
                     }
                 }, 600);
             } else {
                 handler.postDelayed(() -> {
                     if (current(id)) {
-                        waitForRemoval(id);
+                        waitForRemoval(id, target);
                     }
                 }, 400);
             }
         }));
+    }
+
+    private void afterRemoval(int id, PhoneRole target) {
+        if (target == PhoneRole.DS) {
+            discover(id, 0);
+        } else {
+            handler.removeCallbacksAndMessages(null);
+            setPhase(Phase.READY, getString(R.string.rc_handoff));
+        }
     }
 
     private void discover(int id, int retry) {
@@ -551,7 +659,7 @@ public final class MainActivity extends Activity {
                     setPhase(Phase.READY, "FTC Wi-Fi Direct link repaired.\nOpening Driver Station. Check that its app says connected.");
                     handler.postDelayed(() -> {
                         if (current(id) && phase == Phase.READY) {
-                            openDriverStation();
+                            openFtcApp(PhoneRole.DS);
                         }
                     }, 700);
                 }
@@ -634,10 +742,21 @@ public final class MainActivity extends Activity {
             String reported = device == null || device.deviceName == null
                     ? getString(R.string.diagnostic_unknown) : device.deviceName;
             String evidence = getString(R.string.diagnostic_local, reported, dsName, rcName);
-            if (device == null || !dsName.equals(device.deviceName)) {
+            PhoneRole detected = identifyPhone(device);
+            if (detected == PhoneRole.RC) {
+                setRole(detected);
+                inspectRcDiagnostics(id, reported);
+                return;
+            }
+            if (detected != PhoneRole.DS) {
                 finishDiagnostics(evidence, device == null
                         ? getString(R.string.diagnostic_no_p2p)
                         : getString(R.string.diagnostic_name_mismatch));
+                return;
+            }
+            setRole(detected);
+            if (launcher(detected) == null) {
+                finishDiagnostics(evidence, getString(R.string.diagnostic_no_ds));
                 return;
             }
             inspectDiagnosticGroup(id, evidence);
@@ -648,9 +767,6 @@ public final class MainActivity extends Activity {
         if (channel == null) {
             return getString(R.string.diagnostic_no_p2p);
         }
-        if (getPackageManager().getLaunchIntentForPackage(DS_PACKAGE) == null) {
-            return getString(R.string.diagnostic_no_ds);
-        }
         WifiManager wifi = getApplicationContext().getSystemService(WifiManager.class);
         if (wifi == null || !wifi.isWifiEnabled()) {
             return getString(R.string.diagnostic_wifi_off);
@@ -660,6 +776,33 @@ public final class MainActivity extends Activity {
             return getString(R.string.diagnostic_location);
         }
         return null;
+    }
+
+    private void inspectRcDiagnostics(int id, String reported) {
+        String evidence = getString(R.string.rc_diagnostic_local, reported, dsName);
+        if (launcher(PhoneRole.RC) == null) {
+            finishDiagnostics(evidence, getString(R.string.diagnostic_no_rc));
+            return;
+        }
+        runP2p(() -> manager.requestGroupInfo(channel, group -> {
+            if (!diagnosing(id)) {
+                return;
+            }
+            if (group == null || !group.isGroupOwner()) {
+                finishDiagnostics(evidence, getString(R.string.rc_diagnostic_not_owner));
+                return;
+            }
+            runP2p(() -> manager.requestConnectionInfo(channel, info -> {
+                if (!diagnosing(id)) {
+                    return;
+                }
+                boolean ready = info != null && info.groupFormed && info.isGroupOwner
+                        && info.groupOwnerAddress != null
+                        && RC_ADDRESS.equals(info.groupOwnerAddress.getHostAddress());
+                finishDiagnostics(evidence, getString(ready
+                        ? R.string.rc_diagnostic_owner : R.string.rc_diagnostic_not_owner));
+            }));
+        }));
     }
 
     private void inspectDiagnosticGroup(int id, String evidence) {
@@ -729,17 +872,21 @@ public final class MainActivity extends Activity {
         diagnosticReport.setVisibility(View.VISIBLE);
     }
 
-    private void openDriverStation() {
-        Intent intent = getPackageManager().getLaunchIntentForPackage(DS_PACKAGE);
+    private void openFtcApp(PhoneRole target) {
+        if (target == null) {
+            fail(getString(R.string.launch_role_unknown));
+            return;
+        }
+        Intent intent = launcher(target);
         if (intent == null) {
-            fail("FTC Driver Station's launcher is unavailable. Ask a mentor.");
+            fail(getString(target == PhoneRole.RC ? R.string.diagnostic_no_rc : R.string.diagnostic_no_ds));
             return;
         }
         try {
             startActivity(intent);
         } catch (ActivityNotFoundException | SecurityException error) {
-            Log.e(TAG, "Driver Station launcher failed", error);
-            fail("Android could not open Driver Station. Open it from the home screen.");
+            Log.e(TAG, "FTC launcher failed", error);
+            fail(getString(R.string.launch_ftc_failed));
         }
     }
 
@@ -781,7 +928,7 @@ public final class MainActivity extends Activity {
         Log.i(TAG, next.name() + ": " + message);
         progress.setVisibility(busy() ? View.VISIBLE : View.GONE);
         fix.setEnabled(!busy() && namesConfigured());
-        open.setEnabled(!busy());
+        open.setEnabled(!busy() && role != null);
         diagnose.setEnabled(!busy() && namesConfigured());
         deviceNames.setEnabled(!busy());
         findViewById(R.id.wifi_controls).setEnabled(!busy());
@@ -793,6 +940,9 @@ public final class MainActivity extends Activity {
         pendingPermission = null;
         ++attempt;
         handler.removeCallbacksAndMessages(null);
+        if (resetConfirmation != null) {
+            resetConfirmation.dismiss();
+        }
         setPhase(Phase.ERROR, message);
         if (previous == Phase.DIAGNOSING) {
             showDiagnosticReport("", message);
